@@ -1,135 +1,92 @@
 from torchvision import transforms
-from utils import *
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.pyplot as plt
-import pdb
-from plot_bfov import *
+import torch
+from PIL import Image
+import cv2
+import numpy as np
+from utils import rev_label_map
+from plot_bfov import plot_bfov
 
+# Set the device to GPU if available, else fallback to CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load model checkpoint
+# Load the model checkpoint
 checkpoint = 'checkpoint_ssd300.pth.tar'
-checkpoint = torch.load(checkpoint)
+checkpoint = torch.load(checkpoint, map_location=device)
 start_epoch = checkpoint['epoch'] + 1
 print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
 model = checkpoint['model']
 model = model.to(device)
 model.eval()
 
-# Transforms
+# Define transformations for input images
 resize = transforms.Resize((300, 300))
 to_tensor = transforms.ToTensor()
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
-
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
 def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     """
-    Detect objects in an image with a trained SSD300, and visualize the results.
+    Detect objects in an image and plot bounding fields of view (BFOVs).
 
-    :param original_image: image, a PIL Image
-    :param min_score: minimum threshold for a detected box to be considered a match for a certain class
-    :param max_overlap: maximum overlap two boxes can have so that the one with the lower score is not suppressed via Non-Maximum Suppression (NMS)
-    :param top_k: if there are a lot of resulting detection across all classes, keep only the top 'k'
-    :param suppress: classes that you know for sure cannot be in the image or you do not want in the image, a list
-    :return: annotated image, a PIL Image
+    Parameters:
+    - original_image (PIL.Image): The image to detect objects in.
+    - min_score (float): Minimum threshold for a detected box to be considered a match.
+    - max_overlap (float): Maximum overlap two boxes can have so that the one with the lower score is not suppressed.
+    - top_k (int): The maximum number of highest scoring boxes to consider for a given class.
+    - suppress (None): Unused parameter, reserved for future use.
+
+    Returns:
+    - The original image if only 'background' is detected, else returns the image with plotted BFOVs.
+    
+    Side effects:
+    - Saves an image with detected objects and their BFOVs to disk ('final_imagew2.png').
     """
-
-    # Transform
+    # Transform and prepare the image for model prediction
     image = to_tensor(resize(original_image))
-
-    # Move to default device
     image = image.to(device)
-
-    # Forward prop.
     predicted_locs, predicted_scores = model(image.unsqueeze(0))
-
-    # Detect objects in SSD output
+    
+    # Detect objects using the model
     det_boxes, det_labels, det_scores = model.detect_objects(predicted_locs, predicted_scores, min_score=min_score,
                                                              max_overlap=max_overlap, top_k=top_k)
-
-    # Move detections to the CPU
     det_boxes = det_boxes[0].to('cpu')
-
-    # Transform to original image dimensions
+    
+    # Adjust detection boxes to the original image dimensions
     original_dims = torch.FloatTensor(
         [original_image.width, original_image.height, original_image.width, original_image.height]).unsqueeze(0)
     det_boxes = det_boxes * original_dims
-
-    # Decode class integer labels
     det_labels = [rev_label_map[l] for l in det_labels[0].to('cpu').tolist()]
-
-    # If no objects found, the detected labels will be set to ['0.'], i.e. ['background'] in SSD300.detect_objects() in model.py
+    
+    # Skip plotting if only 'background' is detected
     if det_labels == ['background']:
-        # Just return original image
         return original_image
-
-    #print(det_boxes)
-
+    
+    # Calculate centers and angles for BFOVs
     x_center = (det_boxes[:,0]+det_boxes[:,2])/2
     y_center = (det_boxes[:,1]+det_boxes[:,3])/2
     alpha = torch.deg2rad(det_boxes[:,2]-det_boxes[:,0])
     beta = torch.deg2rad(det_boxes[:,3]-det_boxes[:,1])
-
     bfovs = torch.stack((x_center, y_center, alpha, beta), dim=1)
-
+    
+    # Convert boxes for plotting
     boxes = bfovs.detach().cpu().numpy()
-
-    image = cv2.imread('/home/manuelveras/ssd-plane/img2.jpg')
-
-    h, w = 960,1920
-
+    image = np.array(original_image)
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    
+    # Define the dimensions of the output image
+    h, w = 960, 1920
+    
+    # Plot BFOVs on the image
     for i in range(len(boxes)):
         box = boxes[i]
         u00, v00, a_lat, a_long = box
-        #a_lat = np.radians(a_long1)
-        #a_long = np.radians(a_lat1)
         color = (255, 255, 255)
         image = plot_bfov(image, v00, u00, a_lat, a_long, color, h, w)
+    
+    # Save the final image
     cv2.imwrite('final_imagew2.png', image)
 
-
-    #pdb.set_trace()
-
-
-    '''# Annotate
-    annotated_image = original_image
-    draw = ImageDraw.Draw(annotated_image)
-    font = ImageFont.load_default()
-
-    # Suppress specific classes, if needed
-    for i in range(det_boxes.size(0)):
-        if suppress is not None:
-            if det_labels[i] in suppress:
-                continue
-
-        # Boxes
-        box_location = det_boxes[i].tolist()
-        draw.rectangle(xy=box_location, outline=label_color_map[det_labels[i]])
-        draw.rectangle(xy=[l + 1. for l in box_location], outline=label_color_map[
-            det_labels[i]])  # a second rectangle at an offset of 1 pixel to increase line thickness
-        # draw.rectangle(xy=[l + 2. for l in box_location], outline=label_color_map[
-        #     det_labels[i]])  # a third rectangle at an offset of 1 pixel to increase line thickness
-        # draw.rectangle(xy=[l + 3. for l in box_location], outline=label_color_map[
-        #     det_labels[i]])  # a fourth rectangle at an offset of 1 pixel to increase line thickness
-
-        # Text
-        text_size = font.getsize(det_labels[i].upper())
-        text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
-        textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
-                            box_location[1]]
-        draw.rectangle(xy=textbox_location, fill=label_color_map[det_labels[i]])
-        draw.text(xy=text_location, text=det_labels[i].upper(), fill='white',
-                  font=font)
-    del draw
-
-    return annotated_image'''
-
-
 if __name__ == '__main__':
-    img_path = '/home/manuelveras/ssd-plane/img2.jpg'
-    original_image = Image.open(img_path, mode='r')
-    original_image = original_image.convert('RGB')
-    img = detect(original_image, min_score=0.1, max_overlap=0.1, top_k=20)
-    #img.save('output.png')
-
+    # Load an image, convert to RGB, and run detection
+    img_path = '/home/manuelveras/ssd-plane/img3.jpg'
+    original_image = Image.open(img_path).convert('RGB')
+    detect(original_image, min_score=0.1, max_overlap=0.1, top_k=20)
