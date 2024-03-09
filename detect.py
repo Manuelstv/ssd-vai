@@ -2,6 +2,8 @@ from torchvision import transforms
 from utils import *
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
+import pdb
+from plot_bfov import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -62,7 +64,35 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
         # Just return original image
         return original_image
 
-    # Annotate
+    #print(det_boxes)
+
+    x_center = (det_boxes[:,0]+det_boxes[:,2])/2
+    y_center = (det_boxes[:,1]+det_boxes[:,3])/2
+    alpha = torch.deg2rad(det_boxes[:,2]-det_boxes[:,0])
+    beta = torch.deg2rad(det_boxes[:,3]-det_boxes[:,1])
+
+    bfovs = torch.stack((x_center, y_center, alpha, beta), dim=1)
+
+    boxes = bfovs.detach().cpu().numpy()
+
+    image = cv2.imread('/home/manuelveras/ssd-plane/img2.jpg')
+
+    h, w = 960,1920
+
+    for i in range(len(boxes)):
+        box = boxes[i]
+        u00, v00, a_lat, a_long = box
+        #a_lat = np.radians(a_long1)
+        #a_long = np.radians(a_lat1)
+        color = (255, 255, 255)
+        image = plot_bfov(image, v00, u00, a_lat, a_long, color, h, w)
+    cv2.imwrite('final_imagew2.png', image)
+
+
+    #pdb.set_trace()
+
+
+    '''# Annotate
     annotated_image = original_image
     draw = ImageDraw.Draw(annotated_image)
     font = ImageFont.load_default()
@@ -93,13 +123,13 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
                   font=font)
     del draw
 
-    return annotated_image
+    return annotated_image'''
 
 
 if __name__ == '__main__':
-    img_path = '/home/manuelveras/ssd-plane/img3.jpg'
+    img_path = '/home/manuelveras/ssd-plane/img2.jpg'
     original_image = Image.open(img_path, mode='r')
     original_image = original_image.convert('RGB')
-    img = detect(original_image, min_score=0.1, max_overlap=0.5, top_k=200)
-    img.save('output.png')
+    img = detect(original_image, min_score=0.1, max_overlap=0.1, top_k=20)
+    #img.save('output.png')
 

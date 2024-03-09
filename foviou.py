@@ -3,16 +3,6 @@ from numpy import deg2rad
 import pdb
 
 
-def xcyc_to_deg(xc,yc):
-
-    w,h =1920, 960
-
-    theta = 2*(xc/w-0.5)*180
-    phi = 2*(yc/h-0.5)*90
-    
-    return theta, phi
-
-
 def find_foviou(Bg, Bd):
     """
     Calculate the Field of View (FoV) Intersection over Union (IoU) matrix for all combinations of bounding boxes between two sets.
@@ -44,13 +34,8 @@ def find_foviou(Bg, Bd):
     xc_g, yc_g, alpha_g, beta_g = (xmin_g+xmax_g)/2, (ymin_g+ymax_g)/2, (xmax_g-xmin_g), (ymax_g-ymin_g)   
     xc_d, yc_d, alpha_d, beta_d = (xmin_d+xmax_d)/2, (ymin_d+ymax_d)/2, (xmax_d-xmin_d), (ymax_d-ymin_d)
 
-    #pdb.set_trace()
-
-    #theta_g,phi_g = xcyc_to_deg(xc_g,yc_g)
-    #theta_d,phi_d = xcyc_to_deg(xc_d,yc_d)
-
     theta_g, phi_g, alpha_g, beta_g = torch.deg2rad(xc_g), torch.deg2rad(yc_g), torch.deg2rad(alpha_g), torch.deg2rad(beta_g) 
-    theta_d, phi_d, alpha_d, beta_d = torch.deg2rad(yc_d), torch.deg2rad(yc_d), torch.deg2rad(alpha_d), torch.deg2rad(beta_d) 
+    theta_d, phi_d, alpha_d, beta_d = torch.deg2rad(xc_d), torch.deg2rad(yc_d), torch.deg2rad(alpha_d), torch.deg2rad(beta_d) 
 
     # Calculate FoV Area of Bg and Bd
     A_Bg = alpha_g * beta_g
@@ -74,11 +59,13 @@ def find_foviou(Bg, Bd):
 
     return FoV_IoU
 
+'''
 if __name__ == '__main__':
-    #b1 = torch.tensor([[ 40,  85,  30,  40]])
-    #b2 = torch.tensor([[ 60,  78,  40,  30]])
+    b1 = torch.tensor([[ 15.,  65.,  45., 105.],[ 15.,  65.,  45., 105.]])
+    b2 = torch.tensor([[ 0., 63., 20., 93.],[ 15.,  65.,  45., 105.]])
 
-    b1 = torch.tensor([[ 25 ,  65,  55,  105]])
-    b2 = torch.tensor([[ 40,  63,  80,  93]])
-
-    print(find_foviou(b1,b2))
+    #b1 = torch.tensor([[ b1[0,0]-b1[0,2]/2 ,  b1[0,1]-b1[0,3]/2,  b1[0,0]+b1[0,2]/2,  b1[0,1]+b1[0,3]/2]])
+    #b2 = torch.tensor([[ b2[0,0]-b2[0,2]/2 ,  b2[0,1]-b2[0,3]/2,  b2[0,0]+b2[0,2]/2,  b2[0,1]+b2[0,3]/2]])
+    
+    #print(b2)
+    #print(find_foviou(b1,b2))'''
