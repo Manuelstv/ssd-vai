@@ -1,4 +1,5 @@
 from torch import nn
+import pdb
 from utils import *
 import torch.nn.functional as F
 from math import sqrt
@@ -18,7 +19,14 @@ class VGGBase(nn.Module):
         super(VGGBase, self).__init__()
 
         # Standard convolutional layers in VGG16
-        self.conv1_1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)  # stride = 1, by default
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((480,480))
+        self.adaptive_pool2 = nn.AdaptiveAvgPool2d((300,300))
+
+        self.conv0_1 = nn.Conv2d(3, 32, kernel_size=3, padding=2)  # stride = 1, by default
+        self.conv0_2 = nn.Conv2d(32, 32, kernel_size=3, padding=2)
+        self.pool0 = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        self.conv1_1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # stride = 1, by default
         self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
@@ -47,7 +55,7 @@ class VGGBase(nn.Module):
         self.conv7 = nn.Conv2d(1024, 1024, kernel_size=1)
 
         # Load pretrained layers
-        self.load_pretrained_layers()
+        #self.load_pretrained_layers()
 
     def forward(self, image):
         """
@@ -56,7 +64,18 @@ class VGGBase(nn.Module):
         :param image: images, a tensor of dimensions (N, 3, 300, 300)
         :return: lower-level feature maps conv4_3 and conv7
         """
-        out = F.relu(self.conv1_1(image))  # (N, 64, 300, 300)
+
+        out = self.adaptive_pool(image)
+
+        out = F.relu(self.conv0_1(out))  # (N, 64, 300, 300)
+        out = F.relu(self.conv0_2(out))  # (N, 64, 300, 300)
+        out = self.pool0(out)  # (N, 64, 150, 150)
+
+        out = self.adaptive_pool2(out)
+
+        #pdb.set_trace()
+
+        out = F.relu(self.conv1_1(out))  # (N, 64, 300, 300)
         out = F.relu(self.conv1_2(out))  # (N, 64, 300, 300)
         out = self.pool1(out)  # (N, 64, 150, 150)
 
@@ -84,10 +103,12 @@ class VGGBase(nn.Module):
 
         conv7_feats = F.relu(self.conv7(out))  # (N, 1024, 19, 19)
 
+        #pdb.set_trace()
+
         # Lower-level feature maps
         return conv4_3_feats, conv7_feats
 
-    def load_pretrained_layers(self):
+    '''def load_pretrained_layers(self):
         """
         As in the paper, we use a VGG-16 pretrained on the ImageNet task as the base network.
         There's one available in PyTorch, see https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.vgg16
@@ -125,7 +146,7 @@ class VGGBase(nn.Module):
 
         self.load_state_dict(state_dict)
 
-        print("\nLoaded base model.\n")
+        print("\nLoaded base model.\n")'''
 
 
 class AuxiliaryConvolutions(nn.Module):

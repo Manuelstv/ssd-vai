@@ -80,13 +80,14 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
         box = boxes[i]
         u00, v00, a_lat, a_long = box
         color = (255, 255, 255)
-        image = plot_bfov(image, v00, u00, a_lat, a_long, color, h, w)
+        label = det_labels[i]#+str(det_scores[i])
+        image = plot_bfov(image,label , v00, u00, a_lat, a_long, color, h, w)
     
     # Save the final image
     cv2.imwrite('final_imagew2.png', image)
 
 if __name__ == '__main__':
     # Load an image, convert to RGB, and run detection
-    img_path = '/home/manuelveras/ssd-plane/img3.jpg'
+    img_path = '/home/manuelveras/ssd-plane/img2.jpg'
     original_image = Image.open(img_path).convert('RGB')
-    detect(original_image, min_score=0.1, max_overlap=0.1, top_k=20)
+    detect(original_image, min_score=0.1, max_overlap=0.0001, top_k=40)

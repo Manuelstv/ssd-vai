@@ -18,8 +18,8 @@ class PascalVOCDataset(Dataset):
         #self.annotation_dir = os.path.join(self.split_dir)
         self.annotation_dir = '/home/manuelveras/dataset/train/labels'
         print(self.annotation_dir)
-        self.image_filenames = [os.path.join(self.image_dir, f) for f in sorted(os.listdir(self.image_dir)) if f.endswith('.jpg')]
-        self.annotation_filenames = [os.path.join(self.annotation_dir, f) for f in sorted(os.listdir(self.annotation_dir)) if f.endswith('.xml')]
+        self.image_filenames = [os.path.join(self.image_dir, f) for f in sorted(os.listdir(self.image_dir)) if f.endswith('.jpg')][0:10]
+        self.annotation_filenames = [os.path.join(self.annotation_dir, f) for f in sorted(os.listdir(self.annotation_dir)) if f.endswith('.xml')][0:10]
         assert len(self.image_filenames) == len(self.annotation_filenames)
 
     def __getitem__(self, i):
